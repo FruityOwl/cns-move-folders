@@ -44,7 +44,7 @@ Folders and folder membership are stored in this add-on's own world settings. Ca
 
 ## Compatibility
 
-- Foundry VTT 14, Cast & Scene 1.2.0 or newer.
+- Foundry VTT 14, Cast & Scene 1.0.0 or newer (tested with 1.0.0 and 1.2.0).
 - The add-on attaches to Cast & Scene's Director and Quick Access windows. A future Cast & Scene update that changes those windows could require an update here.
 
 ## Releasing a new version

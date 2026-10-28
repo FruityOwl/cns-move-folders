@@ -2,7 +2,7 @@
   "id": "cns-move-folders",
   "title": "Move & Folders for Cast & Scene",
   "description": "Unofficial add-on for the Cast & Scene module. Adds a Move mode to drag characters around the stage directly (positions are saved to their scene preset) and folders for the Character Pool. Uses your existing Cast & Scene data; nothing needs to be recreated.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "authors": [
     {
       "name": "FruityOwl"
@@ -33,13 +33,13 @@
         "manifest": "https://raw.githubusercontent.com/DungeonMaxter/cast-and-scene/main/module.json",
         "reason": "This add-on extends Cast & Scene and uses its data.",
         "compatibility": {
-          "minimum": "1.2.0"
+          "minimum": "1.0.0"
         }
       }
     ]
   },
   "url": "https://github.com/FruityOwl/cns-move-folders",
   "manifest": "https://github.com/FruityOwl/cns-move-folders/releases/latest/download/module.json",
-  "download": "https://github.com/FruityOwl/cns-move-folders/releases/download/v1.0.0/module.zip",
+  "download": "https://github.com/FruityOwl/cns-move-folders/releases/download/v1.0.1/module.zip",
   "license": "LICENSE"
 }

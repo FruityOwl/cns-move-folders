@@ -1,9 +1,10 @@
 # Move & Folders for Cast & Scene
 
-An unofficial add-on for the [Cast & Scene](https://github.com/DungeonMaxter/cast-and-scene) module for Foundry VTT. It adds two things the GM asked for:
+An unofficial add-on for the [Cast & Scene](https://github.com/DungeonMaxter/cast-and-scene) module for Foundry VTT. It adds three things the GM asked for:
 
 - **Move mode:** drag characters around the stage directly instead of opening each character's editor.
 - **Character Pool folders:** organise a long Character Pool into folders and subfolders.
+- **Scene preset order:** drag presets into the order you want, or sort them by name or creation date.
 
 It works on top of your existing Cast & Scene world. Scene presets, positions, names and the Character Pool are used as they are; nothing has to be recreated. This add-on contains no Cast & Scene code. You need Cast & Scene installed and active.
 
@@ -41,6 +42,13 @@ game.modules.get("cns-move-folders").api.toggleMoveMode();
 - Open/closed folders are remembered per browser.
 
 Folders and folder membership are stored in this add-on's own world settings. Cast & Scene's data is not changed, so you can disable or remove this add-on at any time; characters simply show as an unsorted list again.
+
+## Scene preset order
+
+- In the Director's **Scene presets** list, drag a preset up or down. A gold line shows where it will land. The order is saved in Cast & Scene's own preset list, so Quick Access follows it too (presets bound to the current scene still come first there) and it stays if you remove this add-on.
+- The dropdown above the list sorts by **Name A–Z**, **Name Z–A**, **Newest first** or **Oldest first**, in the Director and Quick Access. Names sort naturally, so 2.1 comes before 10 and 6.1 follows 6.
+- Sorting only changes how the list is shown and is remembered per browser; your manual order is kept. Pick **Manual** to get it back. Dragging while a sort is on switches to Manual and keeps the order you see.
+- Cast & Scene stores no creation dates. It does only ever add presets to the end of its list, so the first time this add-on runs it records that order as oldest to newest, then adds new presets as they appear. Presets made while the add-on is disabled are counted from when it next runs.
 
 ## Compatibility
 

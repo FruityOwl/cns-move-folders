@@ -7,6 +7,16 @@ const CNS_ID = "cast-and-scene";
 const FOLDERS_SETTING = "poolFolders";
 const ASSIGNMENTS_SETTING = "poolFolderAssignments";
 const EXPANDED_KEY = `${MODULE_ID}.expandedFolders`;
+const PRESETS_SETTING = "characterTabs";
+const CREATION_SETTING = "presetCreationOrder";
+const PRESET_SORT_KEY = `${MODULE_ID}.presetSort`;
+const PRESET_SORTS = {
+  manual: "PresetSortManual",
+  nameAsc: "PresetSortNameAsc",
+  nameDesc: "PresetSortNameDesc",
+  newest: "PresetSortNewest",
+  oldest: "PresetSortOldest"
+};
 
 const t = (key, data = null) => data ? game.i18n.format(`CNSMF.${key}`, data) : game.i18n.localize(`CNSMF.${key}`);
 const isGM = () => Boolean(game.user?.isGM);
@@ -420,6 +430,216 @@ class PoolFolders {
 }
 
 /* -------------------------------------------- */
+/*  Scene preset order                           */
+/* -------------------------------------------- */
+
+class PresetOrder {
+  static collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+  static observers = new WeakMap();
+  static drag = null;
+  static pendingOrder = null;
+  static recording = Promise.resolve();
+
+  static presets() {
+    const presets = castSetting(PRESETS_SETTING, []);
+    return Array.isArray(presets) ? presets.filter((preset) => preset?.id) : [];
+  }
+
+  static getSort() {
+    try {
+      const sort = localStorage.getItem(PRESET_SORT_KEY);
+      return sort && Object.hasOwn(PRESET_SORTS, sort) ? sort : "manual";
+    } catch (_error) {
+      return "manual";
+    }
+  }
+
+  static setSort(sort) {
+    try { localStorage.setItem(PRESET_SORT_KEY, sort); } catch (_error) { /* view preference only */ }
+    for (const select of document.querySelectorAll(".cnsmf-preset-sort select")) select.value = sort;
+    this.apply();
+  }
+
+  static creationOrder() {
+    const order = game.settings.get(MODULE_ID, CREATION_SETTING);
+    return Array.isArray(order) ? order.map(String) : [];
+  }
+
+  // Cast & Scene stores no dates, but it only ever appends presets, so the list
+  // is in creation order until this add-on first reorders it. Snapshot it once
+  // and append anything new from then on.
+  static recordCreation() {
+    this.recording = this.recording.then(async () => {
+      const ids = this.presets().map((preset) => String(preset.id));
+      const present = new Set(ids);
+      const stored = this.creationOrder();
+      const known = new Set(stored);
+      const next = [...stored.filter((id) => present.has(id)), ...ids.filter((id) => !known.has(id))];
+      if (next.length !== stored.length || next.some((id, index) => id !== stored[index])) await game.settings.set(MODULE_ID, CREATION_SETTING, next);
+    }).catch((error) => console.error(`${MODULE_ID} | Could not record preset creation order`, error));
+    return this.recording;
+  }
+
+  // Sorting only decides what is shown; the saved list stays the manual order.
+  static displayOrder(sort = this.getSort()) {
+    if (this.pendingOrder) return this.pendingOrder;
+    const presets = this.presets().map((preset, index) => ({ id: String(preset.id), name: String(preset.name ?? ""), index }));
+    const created = new Map(this.creationOrder().map((id, index) => [id, index]));
+    const age = (preset) => created.get(preset.id) ?? created.size + preset.index;
+    const compare = {
+      nameAsc: (a, b) => this.collator.compare(a.name, b.name),
+      nameDesc: (a, b) => this.collator.compare(b.name, a.name),
+      newest: (a, b) => age(b) - age(a),
+      oldest: (a, b) => age(a) - age(b)
+    }[sort];
+    if (compare) presets.sort((a, b) => compare(a, b) || a.index - b.index);
+    return presets.map((preset) => preset.id);
+  }
+
+  static arrange(region) {
+    const items = [...region.querySelectorAll(":scope > [data-tab-id]")];
+    if (region.matches("[data-region='tabs']")) for (const item of items) item.draggable = true;
+    const position = new Map(this.displayOrder().map((id, index) => [id, index]));
+    const place = (item) => position.get(item.dataset.tabId) ?? position.size;
+    // Quick Access keeps presets bound to the current scene at the front.
+    const group = (item) => item.classList.contains("is-scene-bound") ? 0 : 1;
+    const sorted = [...items].sort((a, b) => group(a) - group(b) || place(a) - place(b));
+    if (sorted.every((item, index) => item === items[index])) return;
+    const observer = this.observers.get(region);
+    observer?.disconnect();
+    region.append(...sorted);
+    observer?.observe(region, { childList: true });
+  }
+
+  static apply() {
+    for (const region of document.querySelectorAll("#fvn-director [data-region='tabs'], #fvn-scene-palette [data-region='palette-tabs']")) this.arrange(region);
+  }
+
+  static watch(region) {
+    if (!region || this.observers.has(region)) return;
+    const observer = new MutationObserver(() => {
+      void this.recordCreation();
+      this.arrange(region);
+    });
+    this.observers.set(region, observer);
+    observer.observe(region, { childList: true });
+    this.arrange(region);
+  }
+
+  static attachDirector(panel) {
+    const region = panel.querySelector("[data-region='tabs']");
+    if (!region) return;
+    this.injectSortControl(region);
+    this.listenDrag(region);
+    this.watch(region);
+  }
+
+  static injectSortControl(region) {
+    const label = document.createElement("label");
+    label.className = "cnsmf-preset-sort";
+    label.title = t("PresetSortTooltip");
+    label.innerHTML = `<i class="fa-solid fa-arrow-down-short-wide" aria-hidden="true"></i><select aria-label="${t("PresetSortLabel")}">${
+      Object.entries(PRESET_SORTS).map(([sort, key]) => `<option value="${sort}">${t(key)}</option>`).join("")
+    }</select>`;
+    const select = label.querySelector("select");
+    select.value = this.getSort();
+    select.addEventListener("change", () => this.setSort(select.value));
+    region.before(label);
+  }
+
+  static shownIds(region) {
+    return [...region.querySelectorAll(":scope > .fvn-tab[data-tab-id]")].map((tab) => tab.dataset.tabId);
+  }
+
+  // Works from the pointer position, so gaps and the empty space below the list count too.
+  static dropSlot(region, event) {
+    const tabs = [...region.querySelectorAll(":scope > .fvn-tab[data-tab-id]")];
+    if (!tabs.length) return null;
+    const horizontal = getComputedStyle(region).flexDirection.startsWith("row");
+    const next = tabs.find((tab) => {
+      const rect = tab.getBoundingClientRect();
+      return horizontal ? event.clientX < rect.left + rect.width / 2 : event.clientY < rect.top + rect.height / 2;
+    });
+    return next ? { tab: next, after: false } : { tab: tabs.at(-1), after: true };
+  }
+
+  static orderAfterDrop(region, id, slot) {
+    const shown = this.shownIds(region);
+    const order = shown.filter((entry) => entry !== id);
+    if (slot.tab.dataset.tabId === id) return shown;
+    order.splice(order.indexOf(slot.tab.dataset.tabId) + (slot.after ? 1 : 0), 0, id);
+    return order;
+  }
+
+  static listenDrag(region) {
+    const clearSlot = () => {
+      for (const tab of region.querySelectorAll(".cnsmf-drop-before, .cnsmf-drop-after")) tab.classList.remove("cnsmf-drop-before", "cnsmf-drop-after");
+    };
+    const unchanged = (order) => this.shownIds(region).every((id, index) => id === order[index]);
+    region.addEventListener("dragstart", (event) => {
+      const tab = event.target.closest?.(".fvn-tab[data-tab-id]");
+      if (!tab) return;
+      this.drag = tab.dataset.tabId;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("application/x-cnsmf-preset", this.drag);
+      tab.classList.add("is-dragging");
+    });
+    region.addEventListener("dragover", (event) => {
+      if (!this.drag) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      clearSlot();
+      const slot = this.dropSlot(region, event);
+      if (slot && !unchanged(this.orderAfterDrop(region, this.drag, slot))) slot.tab.classList.add(slot.after ? "cnsmf-drop-after" : "cnsmf-drop-before");
+    });
+    region.addEventListener("dragleave", (event) => {
+      if (!region.contains(event.relatedTarget)) clearSlot();
+    });
+    region.addEventListener("drop", async (event) => {
+      const id = this.drag;
+      if (!id) return;
+      event.preventDefault();
+      clearSlot();
+      this.drag = null;
+      const slot = this.dropSlot(region, event);
+      if (!slot) return;
+      const order = this.orderAfterDrop(region, id, slot);
+      if (!unchanged(order)) await this.saveManualOrder(order);
+    });
+    region.addEventListener("dragend", () => {
+      this.drag = null;
+      clearSlot();
+      for (const tab of region.querySelectorAll(".is-dragging")) tab.classList.remove("is-dragging");
+    });
+  }
+
+  // The order on screen becomes the manual order, even if a sort was active.
+  static async saveManualOrder(ids) {
+    const position = new Map(ids.map((id, index) => [id, index]));
+    const presets = foundry.utils.deepClone(this.presets());
+    const place = (preset) => position.get(String(preset.id)) ?? position.size;
+    const ordered = presets.map((preset, index) => ({ preset, index }))
+      .sort((a, b) => place(a.preset) - place(b.preset) || a.index - b.index)
+      .map((entry) => entry.preset);
+    // The drop shows at once; the world setting takes a moment to save.
+    this.pendingOrder = ordered.map((preset) => String(preset.id));
+    this.setSort("manual");
+    try {
+      await game.settings.set(CNS_ID, PRESETS_SETTING, ordered);
+    } finally {
+      this.pendingOrder = null;
+      this.apply();
+    }
+  }
+
+  static onSettingChanged(setting) {
+    if (setting?.key !== `${CNS_ID}.${PRESETS_SETTING}`) return;
+    void this.recordCreation();
+    this.apply();
+  }
+}
+
+/* -------------------------------------------- */
 /*  Small dialogs                                */
 /* -------------------------------------------- */
 
@@ -477,6 +697,7 @@ class DirectorUI {
     this.listenClicks(panel);
     this.listenDragAndDrop(panel);
     this.listenPicker(panel);
+    PresetOrder.attachDirector(panel);
 
     const list = panel.querySelector("[data-region='character-list']");
     this.listObserver = new MutationObserver(() => this.groupList());
@@ -1005,6 +1226,7 @@ function attachToCastAndScene() {
   if (director) DirectorUI.attach(director);
   const palette = document.getElementById("fvn-scene-palette");
   if (palette) QuickAccessUI.attach(palette);
+  PresetOrder.watch(palette?.querySelector("[data-region='palette-tabs']"));
   if (document.getElementById("fvn-stage")) MoveMode.applyToStage();
 }
 
@@ -1024,6 +1246,14 @@ Hooks.once("init", () => {
     type: Object,
     default: {},
     onChange: () => DirectorUI.refresh()
+  });
+  game.settings.register(MODULE_ID, CREATION_SETTING, {
+    name: "Scene preset creation order",
+    scope: "world",
+    config: false,
+    type: Array,
+    default: [],
+    onChange: () => PresetOrder.apply()
   });
   game.keybindings.register(MODULE_ID, "toggleMoveMode", {
     name: "CNSMF.KeybindingMove",
@@ -1049,6 +1279,10 @@ Hooks.once("ready", () => {
   }
   MoveMode.activate();
   ContextMenu.activate();
+  void PresetOrder.recordCreation();
+  // Cast & Scene saves its presets without telling its own windows, or other GMs'.
+  Hooks.on("createSetting", (setting) => PresetOrder.onSettingChanged(setting));
+  Hooks.on("updateSetting", (setting) => PresetOrder.onSettingChanged(setting));
   // Cast & Scene appends its Stage, Director and Quick Access to <body>.
   new MutationObserver(attachToCastAndScene).observe(document.body, { childList: true });
   attachToCastAndScene();

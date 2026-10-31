@@ -30,6 +30,13 @@
     "Delete": "Delete",
     "Cancel": "Cancel",
     "FolderCycle": "A folder cannot be moved into itself or one of its subfolders.",
-    "SelectFolder": "Select every character in this folder"
+    "SelectFolder": "Select every character in this folder",
+    "PresetSortLabel": "Sort scene presets",
+    "PresetSortTooltip": "Sorting only changes how the list is shown. Dragging a preset switches back to Manual and keeps the order you see.",
+    "PresetSortManual": "Manual (drag)",
+    "PresetSortNameAsc": "Name A–Z",
+    "PresetSortNameDesc": "Name Z–A",
+    "PresetSortNewest": "Newest first",
+    "PresetSortOldest": "Oldest first"
   }
 }

@@ -1,5 +1,30 @@
 /* Move & Folders for Cast & Scene */
 
+/* ---------- Scene preset order ---------- */
+#fvn-director .cnsmf-preset-sort {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0 0 7px;
+  color: #aaa;
+  font-size: 12px;
+}
+#fvn-director .cnsmf-preset-sort select {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 28px;
+  min-height: 28px;
+  font-size: 12px;
+}
+#fvn-director .fvn-tab[draggable="true"]:active { cursor: grabbing; }
+#fvn-director .fvn-tab.is-dragging { opacity: .45; }
+/* Inset, because the list clips anything drawn outside its first and last rows. */
+#fvn-director .fvn-tabs .fvn-tab.cnsmf-drop-before { box-shadow: inset 0 3px 0 rgba(242, 209, 142, .95); }
+#fvn-director .fvn-tabs .fvn-tab.cnsmf-drop-after { box-shadow: inset 0 -3px 0 rgba(242, 209, 142, .95); }
+
 /* ---------- Move mode ---------- */
 #fvn-stage.cnsmf-moving {
   outline: 2px dashed rgba(200, 169, 107, .55);
